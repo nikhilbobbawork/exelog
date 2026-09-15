@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useShipmentStore } from '../stores/shipmentStore'
 
+const router = useRouter()
 const shipmentStore = useShipmentStore()
 
 const searchQuery = ref('')
@@ -23,13 +25,15 @@ onMounted(() => {
 const filteredShipments = computed(() => {
   return shipmentStore.shipments.filter(item => {
     const tracking = item.tracking_number || ''
-    const destination = item.destination || ''
+    const destination = item.destination_address || item.destination || ''
+    const city = item.destination_city || ''
     const driver = item.driver_name || ''
     const query = searchQuery.value.toLowerCase()
 
     const matchesSearch =
       tracking.toLowerCase().includes(query) ||
       destination.toLowerCase().includes(query) ||
+      city.toLowerCase().includes(query) ||
       driver.toLowerCase().includes(query)
 
     const matchesStatus =
@@ -47,20 +51,30 @@ const updateStatus = async (shipment, newStatus) => {
     console.error('Failed to update status:', err)
   }
 }
+
+const navigateToAddShipment = () => {
+  router.push('/addshipment')
+}
 </script>
 
 <template>
   <div class="p-6 max-w-6xl mx-auto space-y-6">
-    <!-- Header Summary -->
+    <!-- Header Summary & Navigation -->
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-gray-200 pb-5">
       <div>
         <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Shipment Dashboard</h1>
         <p class="text-sm text-gray-500 mt-1">Manage and track active logistics deliveries.</p>
       </div>
       <div class="flex items-center gap-3">
-        <span class="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700">
+        <span class="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700">
           Total: {{ shipmentStore.totalShipments }}
         </span>
+        <button 
+          @click="navigateToAddShipment"
+          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-semibold rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 cursor-pointer transition-colors"
+        >
+          + Add Shipment
+        </button>
       </div>
     </div>
 
@@ -69,7 +83,7 @@ const updateStatus = async (shipment, newStatus) => {
       <input 
         v-model="searchQuery" 
         type="text"
-        placeholder="Search tracking #, address, or driver..." 
+        placeholder="Search tracking #, address, city, or driver..." 
         class="w-full sm:w-80 px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900 placeholder-gray-400"
       />
       
@@ -104,7 +118,8 @@ const updateStatus = async (shipment, newStatus) => {
         <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase font-semibold text-gray-500 tracking-wider">
           <tr>
             <th class="px-6 py-3">Tracking #</th>
-            <th class="px-6 py-3">Destination</th>
+            <th class="px-6 py-3">Destination Address</th>
+            <th class="px-6 py-3">Coordinates</th>
             <th class="px-6 py-3">Driver</th>
             <th class="px-6 py-3">Status</th>
             <th class="px-6 py-3 text-right">Actions</th>
@@ -119,8 +134,14 @@ const updateStatus = async (shipment, newStatus) => {
             <td class="px-6 py-4 font-semibold text-gray-900 font-mono">
               {{ shipment.tracking_number }}
             </td>
-            <td class="px-6 py-4 text-gray-700 max-w-xs truncate">
-              {{ shipment.destination }}
+            <td class="px-6 py-4 text-gray-700 max-w-xs truncate" :title="shipment.destination_address || shipment.destination">
+              {{ shipment.destination_address || shipment.destination }}
+            </td>
+            <td class="px-6 py-4 text-gray-500 font-mono text-xs">
+              <span v-if="shipment.destination_lat && shipment.destination_lng">
+                {{ shipment.destination_lat }}, {{ shipment.destination_lng }}
+              </span>
+              <span v-else class="text-gray-400 italic">No coordinates</span>
             </td>
             <td class="px-6 py-4 text-gray-600">
               <span :class="{'italic text-gray-400': !shipment.driver_name}">
@@ -151,7 +172,7 @@ const updateStatus = async (shipment, newStatus) => {
           </tr>
           
           <tr v-if="filteredShipments.length === 0">
-            <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+            <td colspan="6" class="px-6 py-12 text-center text-gray-500">
               No shipments found matching your criteria.
             </td>
           </tr>

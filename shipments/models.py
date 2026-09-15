@@ -13,12 +13,35 @@ class Shipment(TimeStampedModel):
         max_length=50, 
         unique=True, 
         db_index=True,
-        blank=True,  # Allows auto-generation on create
+        blank=True,
         help_text="Unique tracking identifier (e.g., TRK-984210)"
     )
-    destination = models.TextField(
-        help_text="Full delivery address"
+    
+    # Structured Destination Address Fields
+    destination_address = models.CharField(
+        max_length=255,
+        help_text="Formatted address string from map selection"
     )
+    destination_city = models.CharField(max_length=100, blank=True, default='')
+    destination_postal_code = models.CharField(max_length=20, blank=True, default='')
+    destination_country = models.CharField(max_length=100, blank=True, default='')
+
+    # Spatial Coordinates for Map Rendering & Distance Routing
+    destination_lat = models.DecimalField(
+        max_digits=9, 
+        decimal_places=6, 
+        null=True, 
+        blank=True,
+        help_text="Latitude coordinate (e.g. 40.712800)"
+    )
+    destination_lng = models.DecimalField(
+        max_digits=9, 
+        decimal_places=6, 
+        null=True, 
+        blank=True,
+        help_text="Longitude coordinate (e.g. -74.006000)"
+    )
+
     driver_name = models.CharField(
         max_length=100, 
         blank=True, 
@@ -38,9 +61,8 @@ class Shipment(TimeStampedModel):
     def save(self, *args, **kwargs):
         """Auto-generate a tracking number if not explicitly provided."""
         if not self.tracking_number:
-            # Generates format like: TRK-A1B2C3D4
             self.tracking_number = f"TRK-{uuid.uuid4().hex[:8].upper()}"
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.tracking_number} - {self.status}"
+        return f"{self.tracking_number} - {self.destination_address} ({self.status})"
