@@ -1,10 +1,28 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useShipmentStore } from '../stores/shipmentStore'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+
+// Fix default Leaflet marker assets in Vue/Vite builds
+import iconUrl from 'leaflet/dist/images/marker-icon.png'
+import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png'
+import shadowUrl from 'leaflet/dist/images/marker-shadow.png'
+
+delete L.Icon.Default.prototype._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconUrl,
+  iconRetinaUrl,
+  shadowUrl,
+})
 
 const router = useRouter()
 const shipmentStore = useShipmentStore()
+
+const mapContainer = ref(null)
+let map = null
+let markerGroup = null
 
 // Status Badge Tailwind Style Mapping
 const statusBadgeStyles = {
@@ -13,13 +31,15 @@ const statusBadgeStyles = {
   DELIVERED: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (shipmentStore.shipments.length === 0) {
-    shipmentStore.fetchShipments()
+    await shipmentStore.fetchShipments()
   }
+  await nextTick()
+  initMap()
 })
 
-// Metrics directly using Pinia store getters/state
+// Metrics using Pinia store getters/state
 const totalShipments = computed(() => shipmentStore.totalShipments || shipmentStore.shipments.length)
 const pendingCount = computed(() => shipmentStore.pendingCount)
 const inTransitCount = computed(() => shipmentStore.inTransitCount)
@@ -32,8 +52,72 @@ const recentShipments = computed(() => {
     .slice(0, 5)
 })
 
+// Filter shipments that contain valid coordinates for the map view
+const shipmentsWithCoords = computed(() => {
+  return shipmentStore.shipments.filter(
+    item => item.destination_lat !== null && item.destination_lng !== null
+  )
+})
+
+// Initialize Leaflet Map
+const initMap = () => {
+  if (!mapContainer.value) return
+
+  map = L.map(mapContainer.value).setView([39.8283, -98.5795], 4) // Default US view
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map)
+
+  markerGroup = L.featureGroup().addTo(map)
+  renderMarkers()
+}
+
+// Draw markers for all shipments with coordinates
+const renderMarkers = () => {
+  if (!map || !markerGroup) return
+  markerGroup.clearLayers()
+
+  const validItems = shipmentsWithCoords.value
+
+  if (validItems.length === 0) return
+
+  const bounds = []
+  validItems.forEach(shipment => {
+    const lat = parseFloat(shipment.destination_lat)
+    const lng = parseFloat(shipment.destination_lng)
+    
+    if (!isNaN(lat) && !isNaN(lng)) {
+      const popupContent = `
+        <div class="p-1 text-xs">
+          <p class="font-bold text-gray-900">${shipment.tracking_number}</p>
+          <p class="text-gray-600">${shipment.destination_address || shipment.destination || 'No address'}</p>
+          <p class="mt-1 font-semibold text-indigo-600">Status: ${shipment.status}</p>
+        </div>
+      `
+      const marker = L.marker([lat, lng]).bindPopup(popupContent)
+      markerGroup.addLayer(marker)
+      bounds.push([lat, lng])
+    }
+  })
+
+  if (bounds.length > 0) {
+    map.fitBounds(bounds, { padding: [30, 30] })
+  }
+}
+
+// Watch store for updates and redraw map markers automatically
+watch(() => shipmentStore.shipments, () => {
+  renderMarkers()
+}, { deep: true })
+
 const navigateToShipments = () => {
   router.push('/shipments')
+}
+
+const navigateToAddShipment = () => {
+  router.push('/shipments/new')
 }
 </script>
 
@@ -45,12 +129,20 @@ const navigateToShipments = () => {
         <h2 class="text-2xl font-bold text-gray-900 tracking-tight">System Overview</h2>
         <p class="text-sm text-gray-500 mt-1">Real-time status of current logistics operations.</p>
       </div>
-      <button 
-        @click="navigateToShipments" 
-        class="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer"
-      >
-        View All Shipments &rarr;
-      </button>
+      <div class="flex items-center gap-3">
+        <button 
+          @click="navigateToAddShipment" 
+          class="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer"
+        >
+          + Create Shipment
+        </button>
+        <button 
+          @click="navigateToShipments" 
+          class="inline-flex items-center justify-center px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+        >
+          View All &rarr;
+        </button>
+      </div>
     </div>
 
     <!-- KPI Metric Cards -->
@@ -84,6 +176,21 @@ const navigateToShipments = () => {
       </div>
     </div>
 
+    <!-- Live Delivery Map Overview -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-semibold text-gray-900">Active Delivery Map</h3>
+          <p class="text-xs text-gray-500">Geographic overview of shipments with pinned coordinates.</p>
+        </div>
+        <span class="text-xs font-medium px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
+          {{ shipmentsWithCoords.length }} Pinned Destinations
+        </span>
+      </div>
+      
+      <div ref="mapContainer" class="h-80 w-full rounded-lg border border-gray-200 shadow-inner z-0"></div>
+    </div>
+
     <!-- Recent Activity Section -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div class="p-5 border-b border-gray-200 flex items-center justify-between">
@@ -112,7 +219,7 @@ const navigateToShipments = () => {
           <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase font-semibold text-gray-500 tracking-wider">
             <tr>
               <th class="px-6 py-3">Tracking #</th>
-              <th class="px-6 py-3">Destination</th>
+              <th class="px-6 py-3">Destination Address</th>
               <th class="px-6 py-3">Driver</th>
               <th class="px-6 py-3">Status</th>
             </tr>
@@ -127,8 +234,8 @@ const navigateToShipments = () => {
               <td class="px-6 py-4 font-semibold text-gray-900 font-mono">
                 {{ shipment.tracking_number }}
               </td>
-              <td class="px-6 py-4 text-gray-700 max-w-xs truncate">
-                {{ shipment.destination }}
+              <td class="px-6 py-4 text-gray-700 max-w-xs truncate" :title="shipment.destination_address || shipment.destination">
+                {{ shipment.destination_address || shipment.destination }}
               </td>
               <td class="px-6 py-4 text-gray-600">
                 <span :class="{'italic text-gray-400': !shipment.driver_name}">
