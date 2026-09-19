@@ -3,6 +3,44 @@ from django.db import models
 from core.models import TimeStampedModel
 
 
+class Driver(TimeStampedModel):
+    """Driver entity managing contact details and availability status."""
+    class Status(models.TextChoices):
+        AVAILABLE = 'AVAILABLE', 'Available'
+        ON_ROUTE = 'ON_ROUTE', 'On Route'
+        OFF_DUTY = 'OFF_DUTY', 'Off Duty'
+
+    name = models.CharField(
+        max_length=100,
+        help_text="Driver's full name"
+    )
+    phone = models.CharField(
+        max_length=20, 
+        blank=True, 
+        default='',
+        help_text="Primary contact phone number"
+    )
+    license_number = models.CharField(
+        max_length=50,
+        unique=True,
+        blank=True,
+        null=True,
+        help_text="Driver's commercial license identifier"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.AVAILABLE,
+        db_index=True
+    )
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} ({self.get_status_display()})"
+
+
 class Shipment(TimeStampedModel):
     class Status(models.TextChoices):
         PENDING = 'PENDING', 'Pending'
@@ -42,12 +80,16 @@ class Shipment(TimeStampedModel):
         help_text="Longitude coordinate (e.g. -74.006000)"
     )
 
-    driver_name = models.CharField(
-        max_length=100, 
-        blank=True, 
-        default='', 
-        help_text="Name of assigned driver or empty string if unassigned"
+    # Replaced string driver_name with ForeignKey relationship
+    driver = models.ForeignKey(
+        Driver,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='shipments',
+        help_text="Assigned driver, or null if unassigned"
     )
+    
     status = models.CharField(
         max_length=20, 
         choices=Status.choices, 

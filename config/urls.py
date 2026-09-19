@@ -19,5 +19,6 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/shipments/', include('shipments.urls')),  # Endpoints available at /api/shipments/
+    # Mount shipments app at /api/ to serve both /api/shipments/ and /api/drivers/
+    path('api/', include('shipments.urls')), 
 ]

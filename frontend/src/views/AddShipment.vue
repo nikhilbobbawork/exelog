@@ -1,143 +1,125 @@
 <template>
-  <div class="p-6 max-w-3xl mx-auto space-y-6">
-    <!-- Form Header -->
-    <div class="border-b border-gray-200 pb-5">
-      <h2 class="text-2xl font-bold text-gray-900 tracking-tight">Create New Shipment</h2>
-      <p class="text-sm text-gray-500 mt-1">Fill out the information below to register a new order into the system.</p>
-    </div>
+  <div class="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md my-8">
+    <h2 class="text-2xl font-bold mb-6 text-gray-800">Add New Shipment</h2>
 
-    <div v-if="errorMessage" class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-medium">
+    <!-- Error Message Display -->
+    <div v-if="errorMessage" class="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
       {{ errorMessage }}
     </div>
 
-    <!-- Form Container -->
-    <form @submit.prevent="handleSubmit" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-6">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+    <form @submit.prevent="handleSubmit" class="space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         
-        <!-- Tracking Number -->
-        <div class="sm:col-span-1">
-          <label for="trackingNumber" class="block text-sm font-medium text-gray-700 mb-1">
-            Tracking Number <span class="text-xs text-gray-400 font-normal">(Leave blank to auto-generate)</span>
-          </label>
-          <input 
-            id="trackingNumber"
-            v-model="form.tracking_number" 
-            type="text" 
-            placeholder="e.g. TRK-984210"
-            class="w-full px-3.5 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900 placeholder-gray-400 font-mono"
-          />
+        <!-- Left Column: Shipment Form Fields -->
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Tracking Number (Optional)</label>
+            <input 
+              v-model="form.tracking_number" 
+              type="text" 
+              placeholder="Auto-generated if blank"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Driver Name</label>
+            <select 
+              v-model="form.driver_name" 
+              required
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+            >
+              <option value="" disabled>Select a driver</option>
+              <option v-for="driver in driverStore.drivers" :key="driver.id" :value="driver.name">
+                {{ driver.name }} ({{ driver.status }})
+              </option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Status</label>
+            <select 
+              v-model="form.status"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500"
+            >
+              <option value="PENDING">PENDING</option>
+              <option value="IN_TRANSIT">IN_TRANSIT</option>
+              <option value="DELIVERED">DELIVERED</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Destination Address</label>
+            <textarea 
+              v-model="form.destination_address" 
+              rows="2" 
+              readonly
+              class="mt-1 block w-full rounded-md bg-gray-50 border-gray-300 shadow-sm border p-2 text-gray-600"
+            ></textarea>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">City</label>
+              <input v-model="form.destination_city" type="text" readonly class="mt-1 block w-full rounded-md bg-gray-50 border-gray-300 border p-2 text-gray-600" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Postal Code</label>
+              <input v-model="form.destination_postal_code" type="text" readonly class="mt-1 block w-full rounded-md bg-gray-50 border-gray-300 border p-2 text-gray-600" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Country</label>
+            <input v-model="form.destination_country" type="text" readonly class="mt-1 block w-full rounded-md bg-gray-50 border-gray-300 border p-2 text-gray-600" />
+          </div>
         </div>
 
-        <!-- Status Selection -->
-        <div class="sm:col-span-1">
-          <label for="status" class="block text-sm font-medium text-gray-700 mb-1">
-            Initial Status
-          </label>
-          <select 
-            id="status"
-            v-model="form.status" 
-            class="w-full px-3.5 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900 bg-white"
-          >
-            <option value="PENDING">Pending</option>
-            <option value="IN_TRANSIT">In Transit</option>
-            <option value="DELIVERED">Delivered</option>
-          </select>
-        </div>
-
-        <!-- MAP ADDRESS PICKER SECTION -->
-        <div class="sm:col-span-2 space-y-3">
-          <label class="block text-sm font-medium text-gray-700">
-            Destination Address & Location Pin <span class="text-red-500">*</span>
-          </label>
+        <!-- Right Column: Map & Address Search -->
+        <div class="space-y-4 flex flex-col">
+          <label class="block text-sm font-medium text-gray-700">Select Destination on Map</label>
           
           <!-- Search Bar -->
           <div class="flex gap-2">
             <input 
               v-model="searchQuery" 
               type="text" 
-              placeholder="Search location on map..." 
+              placeholder="Search address or location..."
               @keyup.enter.prevent="searchAddress"
-              class="w-full px-3.5 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900"
+              class="flex-1 rounded-md border-gray-300 shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500"
             />
             <button 
               type="button" 
-              @click="searchAddress" 
+              @click="searchAddress"
               :disabled="isSearching"
-              class="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium rounded-lg shadow-sm transition-colors"
+              class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
             >
               {{ isSearching ? 'Searching...' : 'Search' }}
             </button>
           </div>
 
           <!-- Leaflet Map Container -->
-          <div ref="mapContainer" class="h-64 w-full rounded-lg border border-gray-300 shadow-inner z-0"></div>
-          <p class="text-xs text-gray-500">Tip: Click anywhere on the map or drag the blue marker to pinpoint exact drop-off coordinates.</p>
-
-          <!-- Formatted Address Result -->
-          <div>
-            <label for="destinationAddress" class="block text-xs font-semibold text-gray-600 mb-1">Formatted Address</label>
-            <input 
-              id="destinationAddress"
-              v-model="form.destination_address" 
-              type="text" 
-              required
-              placeholder="Address will auto-fill from map marker"
-              class="w-full px-3.5 py-2 border border-gray-300 rounded-lg shadow-sm bg-gray-50 text-sm text-gray-900"
-            />
-          </div>
-
-          <!-- Extra Address Breakdown & Coordinates -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-            <div>
-              <label class="block text-xs font-medium text-gray-500">City</label>
-              <input v-model="form.destination_city" type="text" class="w-full p-2 border border-gray-200 rounded text-xs bg-gray-50" readonly />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-500">Postal Code</label>
-              <input v-model="form.destination_postal_code" type="text" class="w-full p-2 border border-gray-200 rounded text-xs bg-gray-50" readonly />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-500">Latitude</label>
-              <input :value="form.destination_lat ?? ''" type="text" class="w-full p-2 border border-gray-200 rounded text-xs bg-gray-50" readonly />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-500">Longitude</label>
-              <input :value="form.destination_lng ?? ''" type="text" class="w-full p-2 border border-gray-200 rounded text-xs bg-gray-50" readonly />
-            </div>
-          </div>
-        </div>
-
-        <!-- Assigned Driver -->
-        <div class="sm:col-span-2">
-          <label for="driverName" class="block text-sm font-medium text-gray-700 mb-1">
-            Assigned Driver <span class="text-xs text-gray-400 font-normal">(Optional)</span>
-          </label>
-          <input 
-            id="driverName"
-            v-model="form.driver_name" 
-            type="text" 
-            placeholder="e.g. Ajunta Pal"
-            class="w-full px-3.5 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-gray-900 placeholder-gray-400"
-          />
+          <div ref="mapContainer" class="w-full h-80 rounded-md border border-gray-300 z-0"></div>
+          <p class="text-xs text-gray-500">Tip: Click anywhere on the map or drag the marker to automatically update the destination address fields.</p>
         </div>
 
       </div>
 
       <!-- Action Buttons -->
-      <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+      <div class="flex justify-end gap-4 pt-4 border-t border-gray-200">
         <button 
           type="button" 
           @click="cancel"
-          class="px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg shadow-sm transition-colors cursor-pointer"
+          class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
         >
           Cancel
         </button>
         <button 
           type="submit" 
           :disabled="isSubmitting"
-          class="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 cursor-pointer"
+          class="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
         >
-          {{ isSubmitting ? 'Saving...' : 'Create Shipment' }}
+          {{ isSubmitting ? 'Creating...' : 'Create Shipment' }}
         </button>
       </div>
     </form>
@@ -145,9 +127,10 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted } from 'vue';
+import { reactive, ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useShipmentStore } from '../stores/shipmentStore';
+import { useDriverStore } from '../stores/driverStore';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -165,6 +148,8 @@ L.Icon.Default.mergeOptions({
 
 const router = useRouter();
 const shipmentStore = useShipmentStore();
+const driverStore = useDriverStore();
+
 const isSubmitting = ref(false);
 const isSearching = ref(false);
 const errorMessage = ref('');
@@ -187,7 +172,12 @@ const form = reactive({
 });
 
 onMounted(() => {
-  // Default coordinates (e.g., Chicago / Central Hub)
+  // Fetch drivers list for the select dropdown
+  driverStore.fetchDrivers();
+
+  if (!mapContainer.value) return;
+
+  // Default coordinates (Chicago Hub)
   const defaultCoords = [41.8781, -87.6298];
 
   map = L.map(mapContainer.value).setView(defaultCoords, 12);
@@ -199,13 +189,16 @@ onMounted(() => {
 
   marker = L.marker(defaultCoords, { draggable: true }).addTo(map);
 
-  // Handle marker drag event
+  // Recalculate size to avoid tile-rendering glitches on initial load
+  setTimeout(() => map?.invalidateSize(), 200);
+
+  // Drag event listener
   marker.on('dragend', () => {
     const { lat, lng } = marker.getLatLng();
     reverseGeocode(lat, lng);
   });
 
-  // Handle direct map click event
+  // Map click listener
   map.on('click', (e) => {
     const { lat, lng } = e.latlng;
     marker.setLatLng([lat, lng]);
@@ -213,15 +206,31 @@ onMounted(() => {
   });
 });
 
+// Cleanup map instance on unmount
+onUnmounted(() => {
+  if (map) {
+    map.remove();
+    map = null;
+  }
+});
+
 // Search address using OpenStreetMap Nominatim API
 const searchAddress = async () => {
   if (!searchQuery.value.trim()) return;
   isSearching.value = true;
+  errorMessage.value = '';
+
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery.value)}`
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery.value)}`,
+      {
+        headers: {
+          'User-Agent': 'ExelogApp/1.0'
+        }
+      }
     );
     const data = await response.json();
+
     if (data && data.length > 0) {
       const result = data[0];
       const lat = parseFloat(result.lat);
@@ -236,6 +245,7 @@ const searchAddress = async () => {
     }
   } catch (err) {
     console.error('Search error:', err);
+    errorMessage.value = 'Failed to fetch location data.';
   } finally {
     isSearching.value = false;
   }
@@ -245,13 +255,19 @@ const searchAddress = async () => {
 const reverseGeocode = async (lat, lng) => {
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+      {
+        headers: {
+          'User-Agent': 'ExelogApp/1.0'
+        }
+      }
     );
     const data = await response.json();
+
     if (data) {
       const address = data.address || {};
       form.destination_address = data.display_name || '';
-      form.destination_city = address.city || address.town || address.village || '';
+      form.destination_city = address.city || address.town || address.village || address.municipality || '';
       form.destination_postal_code = address.postcode || '';
       form.destination_country = address.country || '';
       form.destination_lat = parseFloat(lat.toFixed(6));
@@ -265,10 +281,10 @@ const reverseGeocode = async (lat, lng) => {
 const handleSubmit = async () => {
   isSubmitting.value = true;
   errorMessage.value = '';
+
   try {
-    // If tracking number is blank, delete key so backend auto-generates it
     const payload = { ...form };
-    if (!payload.tracking_number) {
+    if (!payload.tracking_number.trim()) {
       delete payload.tracking_number;
     }
     
@@ -276,7 +292,13 @@ const handleSubmit = async () => {
     router.push('/shipments');
   } catch (error) {
     console.error('Submission error:', error);
-    errorMessage.value = error.response?.data ? JSON.stringify(error.response.data) : 'Failed to create shipment.';
+    if (error.response?.data) {
+      errorMessage.value = typeof error.response.data === 'string'
+        ? error.response.data
+        : JSON.stringify(error.response.data);
+    } else {
+      errorMessage.value = 'Failed to create shipment. Please check your input.';
+    }
   } finally {
     isSubmitting.value = false;
   }
